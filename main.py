@@ -158,15 +158,21 @@ class DMXService:
                 logger.warning(f"Could not initialize encoder {encoder_id}: {e}")
 
     def _main_loop(self):
-        """Main service loop"""
+        """Main service loop - Optimized"""
         logger.info("Entering main loop")
 
-        update_interval = 0.05  # 50ms
+        # ✅ OPTIMIERUNG: Faster update rate (20ms = 50 Hz)
+        update_interval = 0.020  # 20ms instead of 50ms
         display_update_counter = 0
-        display_update_interval = 20  # Update display every 20 iterations (1 second)
+        display_update_interval = 50  # Update display every 50 iterations (1 second)
+
+        # ✅ OPTIMIERUNG: Use perf_counter for precise timing
+        last_update = time.perf_counter()
 
         try:
             while self.running:
+                loop_start = time.perf_counter()
+
                 # Update DMX from potentiometers
                 if self.poti and self.controller.dmx:
                     self.controller.update_from_potis(self.poti)
@@ -177,7 +183,16 @@ class DMXService:
                     display_update_counter = 0
                     self._update_display()
 
-                time.sleep(update_interval)
+                # ✅ OPTIMIERUNG: Precise sleep with busy-wait
+                elapsed = time.perf_counter() - loop_start
+                remaining = update_interval - elapsed
+
+                if remaining > 0.002:
+                    time.sleep(remaining - 0.001)  # Sleep most of the time
+
+                # Busy-wait for precision (last 1-2ms)
+                while time.perf_counter() - loop_start < update_interval:
+                    pass
 
         except KeyboardInterrupt:
             logger.info("Service interrupted by user")

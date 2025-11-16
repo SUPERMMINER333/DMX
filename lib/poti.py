@@ -1,13 +1,14 @@
 """
-Potentiometer Library
-Reads analog values from ADS1115 ADC
+Potentiometer Library - Optimized
+Reads analog values from ADS1115 ADC with efficient smoothing
 """
 
 import time
+from collections import deque
 
 
 class Poti:
-    """Potentiometer Handler using ADS1115"""
+    """Potentiometer Handler using ADS1115 - Optimized"""
 
     def __init__(self, ads, smoothing=5):
         """
@@ -19,8 +20,16 @@ class Poti:
         """
         self.ads = ads
         self.smoothing = smoothing
-        self.history = [[] for _ in range(4)]
-        self.last_values = [0, 0, 0, 0]
+
+        # ✅ OPTIMIERUNG: deque statt list (schnellere append/pop)
+        self.history = [deque(maxlen=smoothing) for _ in range(4)]
+
+        # ✅ OPTIMIERUNG: bytearray für Werte
+        self.last_values = bytearray([0, 0, 0, 0])
+
+        # Cache für letzten Raw-Wert (Noise-Reduktion)
+        self._last_raw = [0, 0, 0, 0]
+        self._noise_threshold = 10  # ADC-Rauschen ignorieren
 
     def read(self, channel):
         """
@@ -41,7 +50,7 @@ class Poti:
 
     def read_all(self, channel):
         """
-        Read and smooth ADC value, convert to DMX range (0-255)
+        Read and smooth ADC value, convert to DMX range (0-255) - Optimized
 
         Args:
             channel: ADC channel (0-3)
@@ -51,20 +60,27 @@ class Poti:
         """
         raw = self.read(channel)
 
-        # Add to history for smoothing
+        # ✅ OPTIMIERUNG: Noise filtering - ignore small changes
+        if abs(raw - self._last_raw[channel]) < self._noise_threshold:
+            return self.last_values[channel]
+
+        self._last_raw[channel] = raw
+
+        # ✅ OPTIMIERUNG: deque auto-manages size
         self.history[channel].append(raw)
-        if len(self.history[channel]) > self.smoothing:
-            self.history[channel].pop(0)
 
-        # Calculate average
-        if self.history[channel]:
-            avg = sum(self.history[channel]) / len(self.history[channel])
-        else:
-            avg = raw
+        # ✅ OPTIMIERUNG: Fast average without intermediate list
+        avg = sum(self.history[channel]) / len(self.history[channel])
 
-        # Convert to 0-255 range (assuming ADS1115 returns 0-4095 for 12-bit)
-        dmx_value = int((avg / 4095.0) * 255)
-        dmx_value = max(0, min(255, dmx_value))
+        # ✅ OPTIMIERUNG: Fast conversion with precalculated constant
+        # avg / 4095 * 255 = avg * 0.0622659...
+        dmx_value = int((avg * 255) / 4095)
+
+        # ✅ OPTIMIERUNG: Fast clamping
+        if dmx_value < 0:
+            dmx_value = 0
+        elif dmx_value > 255:
+            dmx_value = 255
 
         self.last_values[channel] = dmx_value
         return dmx_value
