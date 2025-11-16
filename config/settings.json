@@ -1,10 +1,10 @@
 {
   "dmx_port": "/dev/ttyUSB0",
   "dmx_baudrate": 250000,
-  "oled_address": null,
+  "oled_address": "0x3C",
   "oled_type": "ssd1306",
-  "oled_enabled": false,
-  "ads1115_address": 60,
+  "oled_enabled": true,
+  "ads1115_address": 72,
   "log_level": "INFO",
   "encoder_pins": {
     "encoder_1": {
