@@ -1,254 +1,198 @@
 """
-DMX Control Library - Optimized Version
-High-performance DMX512 implementation with precise timing
+DMX Control Library - Working Version
+Based on user's tested implementation with fcntl for precise break timing
 """
 
-import serial
 import threading
+import serial
 import time
 import os
-import ctypes
+import fcntl
 
 
 class Dmx:
-    """DMX Controller Interface - Optimized"""
+    """DMX Controller - Production Version"""
 
-    def __init__(self, port="/dev/ttyUSB0", baudrate=250000, channels=512):
+    def __init__(self, port="/dev/ttyUSB0"):
         """
         Initialize DMX controller
 
         Args:
-            port: Serial port for DMX interface
-            baudrate: DMX baudrate (default 250000)
-            channels: Number of DMX channels (default 512)
+            port: Serial port for DMX interface (or serial.Serial object)
         """
-        self.port = port
-        self.baudrate = baudrate
-        self.channels = channels
+        if isinstance(port, str):
+            self.ser = serial.Serial(port)
+        else:
+            self.ser = port
 
-        # ✅ OPTIMIERUNG: bytearray statt list (schneller, weniger Memory)
-        self.data = bytearray(channels)
+        self.ser.baudrate = 250000
+        self.ser.bytesize = serial.EIGHTBITS
+        self.ser.parity = serial.PARITY_NONE
+        self.ser.stopbits = serial.STOPBITS_TWO
+        self.ser.xonxoff = False
 
-        # ✅ OPTIMIERUNG: Pre-allocate frame buffer
-        self._frame_buffer = bytearray([0] + list(self.data))  # Start code + channels
+        # prepare control objects
+        self.enabled = False
+        self.control = threading.Condition()
 
-        self.running = False
-        self.thread = None
-        self.serial = None
+        self.data = [0] * 512
+        self.update = threading.Condition()
 
-        # Performance monitoring
-        self._frame_count = 0
-        self._last_fps_check = time.time()
+        # start the sender thread
+        self.send_thread = threading.Thread(target=self.__sender)
+        self.send_thread.daemon = True
+        self.send_thread.start()
 
-    def start(self):
-        """Start DMX transmission with optimizations"""
-        try:
-            self.serial = serial.Serial(
-                self.port,
-                baudrate=self.baudrate,
-                bytesize=serial.EIGHTBITS,
-                parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_TWO,
-                # ✅ OPTIMIERUNG: Disable software flow control
-                xonxoff=False,
-                # ✅ OPTIMIERUNG: Disable hardware flow control
-                rtscts=False,
-                dsrdtr=False,
-                # ✅ OPTIMIERUNG: Short timeout
-                timeout=0.001
-            )
+    def __start(self, s):
+        """Internal: Start/stop DMX transmission"""
+        self.control.acquire()
+        self.enabled = s
+        self.control.notify()
+        self.control.release()
 
-            self.running = True
-            self.thread = threading.Thread(target=self._send_loop, daemon=True)
+    def __sender(self):
+        """Internal: DMX sender thread"""
+        while True:
+            self.control.acquire()
+            self.control.wait_for(lambda: self.enabled)
+            self.control.release()
 
-            # ✅ OPTIMIERUNG: Set thread priority (requires root or capabilities)
-            self.thread.start()
-            self._set_realtime_priority()
+            self.update.acquire()
+            self.update.wait(0.1)
 
-            print(f"DMX started on {self.port}")
-        except Exception as e:
-            print(f"Error starting DMX: {e}")
-            self.running = False
-
-    def _set_realtime_priority(self):
-        """Set realtime priority for DMX thread (Linux only)"""
-        try:
-            # Try to set high priority (nice level)
-            os.nice(-10)  # Requires privileges
-            print("DMX thread priority increased")
-        except PermissionError:
-            # Fallback: try with ctypes (SCHED_FIFO)
             try:
-                libc = ctypes.CDLL('libc.so.6', use_errno=True)
+                # hacky workaround for long break using ioctl
+                fcntl.ioctl(self.ser, 0x5427)  # TIOCSBRK - Set break
+                time.sleep(0.0001)  # 100µs break
+                fcntl.ioctl(self.ser, 0x5428)  # TIOCCBRK - Clear break
 
-                class SchedParam(ctypes.Structure):
-                    _fields_ = [('sched_priority', ctypes.c_int)]
-
-                SCHED_FIFO = 1
-                param = SchedParam()
-                param.sched_priority = 50  # 1-99, higher = more priority
-
-                # Set scheduler for current thread
-                result = libc.pthread_setschedparam(
-                    libc.pthread_self(),
-                    SCHED_FIFO,
-                    ctypes.byref(param)
-                )
-
-                if result == 0:
-                    print("DMX using SCHED_FIFO realtime scheduling")
-                else:
-                    print(f"Could not set realtime priority (run as root for best performance)")
-            except Exception as e:
-                print(f"Realtime scheduling unavailable: {e}")
-        except Exception as e:
-            print(f"Priority adjustment failed: {e}")
-
-    def stop(self):
-        """Stop DMX transmission"""
-        self.running = False
-        if self.thread:
-            self.thread.join(timeout=2)
-        if self.serial and self.serial.is_open:
-            self.serial.close()
-        print("DMX stopped")
-
-    def _send_loop(self):
-        """Internal loop for sending DMX data - Optimized"""
-        # ✅ OPTIMIERUNG: Pre-calculate target frame time
-        target_frame_time = 1.0 / 44.0  # 44 FPS for DMX (22.7ms per frame)
-
-        while self.running:
-            try:
-                frame_start = time.perf_counter()
-
-                self._send_frame_optimized()
-
-                # ✅ OPTIMIERUNG: Precise timing with busy-wait for last microseconds
-                elapsed = time.perf_counter() - frame_start
-                remaining = target_frame_time - elapsed
-
-                if remaining > 0.001:
-                    # Sleep for bulk of remaining time
-                    time.sleep(remaining - 0.001)
-
-                    # Busy-wait for precision (last 1ms)
-                    while time.perf_counter() - frame_start < target_frame_time:
-                        pass
-
-                # FPS monitoring
-                self._frame_count += 1
-                if self._frame_count % 100 == 0:
-                    now = time.time()
-                    fps = 100 / (now - self._last_fps_check)
-                    self._last_fps_check = now
-                    # print(f"DMX FPS: {fps:.1f}")  # Uncomment for debugging
-
+                # DMX first entry is a null byte (start code)
+                self.ser.write(bytes((0,)))
+                # now the channel values
+                self.ser.write(bytes(self.data))
+                self.ser.flush()
             except Exception as e:
                 print(f"DMX send error: {e}")
 
-    def _send_frame(self):
-        """Send a single DMX frame - Legacy method"""
-        self._send_frame_optimized()
+            self.update.release()
 
-    def _send_frame_optimized(self):
-        """Send a single DMX frame - Optimized version"""
-        if not self.serial or not self.serial.is_open:
-            return
+    def __pre_change(self):
+        """Internal: Acquire lock before changing data"""
+        self.update.acquire()
 
-        # ✅ OPTIMIERUNG: Use hardware break instead of software timing
-        # Most USB-DMX adapters handle break automatically
-        # If your interface needs manual break:
-        try:
-            self.serial.break_condition = True
-            # Note: Hardware handles timing, Python sleep too imprecise
-            self.serial.break_condition = False
-        except:
-            pass  # Some interfaces don't support break_condition
+    def __done_change(self):
+        """Internal: Release lock and notify after changing data"""
+        self.update.notify()
+        self.update.release()
+        time.sleep(0)  # yield
 
-        # ✅ OPTIMIERUNG: Update frame buffer in-place
-        self._frame_buffer[1:] = self.data
+    def start(self):
+        """Start DMX transmission"""
+        self.__start(True)
+        print(f"DMX started on {self.ser.port}")
 
-        # ✅ OPTIMIERUNG: Single write operation (faster than multiple writes)
-        self.serial.write(self._frame_buffer)
+    def stop(self):
+        """Stop DMX transmission"""
+        self.__start(False)
+        print("DMX stopped")
 
-    def set_channel(self, channel, value):
+    def get_data(self, channel=0, channels=1):
         """
-        Set a single DMX channel - Optimized
+        Get DMX data for one or more channels
+
+        Args:
+            channel: Starting channel (0-511)
+            channels: Number of channels to get
+
+        Returns:
+            List of channel values
+        """
+        return self.data[channel:channel + channels]
+
+    def get_channel(self, channel=0):
+        """
+        Get single channel value
 
         Args:
             channel: Channel number (0-511)
-            value: DMX value (0-255)
+
+        Returns:
+            Channel value (0-255)
         """
-        # ✅ OPTIMIERUNG: Fast bounds checking, no function calls
-        if 0 <= channel < self.channels:
-            # Clamp value efficiently
-            if value < 0:
-                value = 0
-            elif value > 255:
-                value = 255
-            self.data[channel] = int(value)
+        if 0 <= channel < 512:
+            return self.data[channel]
+        return 0
+
+    def set_data(self, data, channel=0):
+        """
+        Set DMX data
+
+        Args:
+            data: List of values or single value
+            channel: Starting channel (0 = replace all data)
+        """
+        self.__pre_change()
+        if channel == 0:
+            self.data = list(data) if isinstance(data, (list, tuple)) else [data] * 512
+        else:
+            data_list = list(data) if isinstance(data, (list, tuple)) else [data]
+            self.data = self.data[:channel] + data_list + self.data[channel + len(data_list):]
+        self.__done_change()
+
+    def reset(self):
+        """Reset all channels to 0"""
+        self.set_data([0] * 512)
 
     def set_channels(self, channels, value):
         """
-        Set multiple DMX channels to the same value
+        Set multiple channels to same value
 
         Args:
             channels: List of channel numbers
-            value: DMX value (0-255)
+            value: Value to set (0-255)
         """
-        for ch in channels:
-            self.set_channel(ch, value)
+        self.__pre_change()
+        for c in channels:
+            if 0 <= c < 512:
+                self.data[c] = max(0, min(255, int(value)))
+        self.__done_change()
 
-    def set_data(self, value, channel):
+    def set_channel(self, channel, value):
         """
-        Alternative method to set channel (compatible with existing code)
+        Set single channel
 
         Args:
-            value: DMX value (0-255)
             channel: Channel number (0-511)
+            value: Value (0-255)
         """
-        self.set_channel(channel, value)
+        self.set_channels([channel], value)
 
-    def inc_channel(self, channel, step=1):
-        """
-        Increment channel value
+    def inc_channels(self, channels):
+        """Increment channels by 1"""
+        self.__pre_change()
+        for c in channels:
+            if 0 <= c < 512:
+                self.data[c] = min(255, self.data[c] + 1)
+        self.__done_change()
 
-        Args:
-            channel: Channel number
-            step: Increment step (default 1)
-        """
-        if 0 <= channel < self.channels:
-            self.data[channel] = min(255, self.data[channel] + step)
+    def dec_channels(self, channels):
+        """Decrement channels by 1"""
+        self.__pre_change()
+        for c in channels:
+            if 0 <= c < 512:
+                self.data[c] = max(0, self.data[c] - 1)
+        self.__done_change()
 
-    def dec_channel(self, channel, step=1):
-        """
-        Decrement channel value
+    def inc_channel(self, channel):
+        """Increment single channel"""
+        self.inc_channels([channel])
 
-        Args:
-            channel: Channel number
-            step: Decrement step (default 1)
-        """
-        if 0 <= channel < self.channels:
-            self.data[channel] = max(0, self.data[channel] - step)
+    def dec_channel(self, channel):
+        """Decrement single channel"""
+        self.dec_channels([channel])
 
-    def reset(self):
-        """Reset all channels to 0 - Optimized"""
-        # ✅ OPTIMIERUNG: Clear bytearray in-place (faster)
-        for i in range(self.channels):
-            self.data[i] = 0
-        # Alternative: self.data[:] = bytearray(self.channels)
-
-    def get_channel(self, channel):
-        """
-        Get current value of a channel
-
-        Args:
-            channel: Channel number
-
-        Returns:
-            Current DMX value (0-255)
-        """
-        if 0 <= channel < self.channels:
-            return self.data[channel]
-        return 0
+    # Add compatibility with optimized version's property
+    @property
+    def running(self):
+        """Check if DMX is running"""
+        return self.enabled
