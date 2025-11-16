@@ -29,6 +29,10 @@ dataclasses>=0.6; python_version<"3.7"
 # Logging and utilities
 colorlog>=6.6.0
 
+# Web Interface
+flask>=2.3.0
+flask-cors>=4.0.0
+
 # Development/Testing
 pytest>=7.1.0
 pytest-cov>=3.0.0

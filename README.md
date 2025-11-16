@@ -4,12 +4,21 @@ Vollständiges DMX-Steuerungssystem mit OLED-Display, Potentiometern, Rotary Enc
 
 ## Features
 
+### Hardware-Integration
 - ✅ **DMX-Steuerung** über USB-DMX-Interface
 - ✅ **4 Potentiometer** über ADS1115 ADC
 - ✅ **4 Rotary Encoder** mit Buttons
 - ✅ **OLED Display** (SSD1306/SH1106) für Menüs und Status
+
+### Steuerung & Effekte
 - ✅ **Fixture-Management** mit flexiblem Channel-Mapping
-- ✅ **Szenen-System** zum Speichern und Abrufen von Zuständen
+- ✅ **Szenen-System** zum Speichern und Abrufen
+- ✅ **Chase-Effekte** (Strobe, Running Light, Color Fade, etc.)
+- ✅ **Art-Net Support** (DMX über Ethernet, mehrere Universen)
+- ✅ **Fixture-Profil-Bibliothek** (9+ vordefinierte Geräte)
+
+### Schnittstellen
+- ✅ **Web-Interface** mit RESTful API (Flask)
 - ✅ **Bluetooth LE** für Smartphone-Steuerung
 - ✅ **CLI-Tool** zur Konfiguration
 - ✅ **JSON-Persistenz** für alle Einstellungen
