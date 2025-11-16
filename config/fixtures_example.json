@@ -1,0 +1,134 @@
+{
+  "fixtures": [
+    {
+      "id": "rgb_light_1",
+      "name": "RGB Scheinwerfer 1",
+      "start_channel": 0,
+      "num_channels": 3,
+      "manufacturer": "Generic",
+      "model": "RGB",
+      "channel_mappings": [
+        {
+          "channel_offset": 0,
+          "channel_type": "red",
+          "name": "Red",
+          "ranges": [],
+          "default_value": 0
+        },
+        {
+          "channel_offset": 1,
+          "channel_type": "green",
+          "name": "Green",
+          "ranges": [],
+          "default_value": 0
+        },
+        {
+          "channel_offset": 2,
+          "channel_type": "blue",
+          "name": "Blue",
+          "ranges": [],
+          "default_value": 0
+        }
+      ],
+      "tags": [
+        "stage",
+        "rgb"
+      ]
+    },
+    {
+      "id": "rgbw_light_1",
+      "name": "RGBW PAR Scheinwerfer",
+      "start_channel": 10,
+      "num_channels": 4,
+      "manufacturer": "Generic",
+      "model": "RGBW",
+      "channel_mappings": [
+        {
+          "channel_offset": 0,
+          "channel_type": "red",
+          "name": "Red",
+          "ranges": [],
+          "default_value": 0
+        },
+        {
+          "channel_offset": 1,
+          "channel_type": "blue",
+          "name": "Blue",
+          "ranges": [],
+          "default_value": 0
+        },
+        {
+          "channel_offset": 2,
+          "channel_type": "green",
+          "name": "Green",
+          "ranges": [],
+          "default_value": 0
+        },
+        {
+          "channel_offset": 3,
+          "channel_type": "white",
+          "name": "White",
+          "ranges": [],
+          "default_value": 0
+        }
+      ],
+      "tags": [
+        "stage",
+        "rgbw",
+        "par"
+      ]
+    },
+    {
+      "id": "moving_head_1",
+      "name": "Moving Head mit Color Wheel",
+      "start_channel": 20,
+      "num_channels": 1,
+      "manufacturer": "Generic",
+      "model": "ColorWheel",
+      "channel_mappings": [
+        {
+          "channel_offset": 0,
+          "channel_type": "color_wheel",
+          "name": "Color Wheel",
+          "ranges": [
+            {
+              "min_value": 0,
+              "max_value": 50,
+              "name": "Blau",
+              "description": "Blaues Licht"
+            },
+            {
+              "min_value": 51,
+              "max_value": 100,
+              "name": "Rot",
+              "description": "Rotes Licht"
+            },
+            {
+              "min_value": 101,
+              "max_value": 150,
+              "name": "Grün",
+              "description": "Grünes Licht"
+            },
+            {
+              "min_value": 151,
+              "max_value": 200,
+              "name": "Gelb",
+              "description": "Gelbes Licht"
+            },
+            {
+              "min_value": 201,
+              "max_value": 255,
+              "name": "Weiß",
+              "description": "Weißes Licht"
+            }
+          ],
+          "default_value": 0
+        }
+      ],
+      "tags": [
+        "moving",
+        "colorwheel"
+      ]
+    }
+  ]
+}
