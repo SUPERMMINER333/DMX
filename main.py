@@ -98,19 +98,34 @@ class DMXService:
             self.controller = DMXController(self.settings)
             self.controller.start()
 
-            # Initialize OLED display
-            oled_type = self.settings.get("oled_type", "ssd1306")
-            oled_addr = int(self.settings.get("oled_address", "0x3C"), 16)
+            # Initialize OLED display (if enabled)
+            oled_enabled = self.settings.get("oled_enabled", True)
 
-            self.display = Display(device_type=oled_type, address=oled_addr)
-            self.display.show_message("DMX Controller\nStarting...")
+            if oled_enabled and self.settings.get("oled_address"):
+                oled_type = self.settings.get("oled_type", "ssd1306")
+                oled_addr = int(self.settings.get("oled_address", "0x3C"), 16)
 
-            # Initialize menu system
-            self.menu_system = MenuSystem(self.display, self.controller)
+                self.display = Display(device_type=oled_type, address=oled_addr)
+                self.display.show_message("DMX Controller\nStarting...")
+
+                # Initialize menu system
+                self.menu_system = MenuSystem(self.display, self.controller)
+                logger.info("OLED display enabled")
+            else:
+                self.display = None
+                self.menu_system = None
+                logger.info("OLED display disabled")
 
             # Initialize ADS1115 and potentiometers
+            ads_address = self.settings.get("ads1115_address", 60)  # 60 = 0x3C
+
             if ADS_AVAILABLE:
-                ads = ADS1115.ADS1115()
+                try:
+                    ads = ADS1115.ADS1115(address=ads_address)
+                    logger.info(f"ADS1115 initialized on I2C address 0x{ads_address:02X}")
+                except Exception as e:
+                    logger.warning(f"ADS1115 init failed: {e}, using mock")
+                    ads = ADS1115.ADS1115()  # Mock
             else:
                 ads = ADS1115.ADS1115()  # Mock
 
@@ -126,8 +141,10 @@ class DMXService:
             self.running = True
 
             # Display startup info
-            self.display.show_message("DMX Controller\nReady!", 2.0)
-            self.menu_system.render()
+            if self.display:
+                self.display.show_message("DMX Controller\nReady!", 2.0)
+            if self.menu_system:
+                self.menu_system.render()
 
             logger.info("All components started successfully")
 
@@ -203,6 +220,9 @@ class DMXService:
 
     def _update_display(self):
         """Update display with current status"""
+        if not self.display:
+            return  # No display configured
+
         try:
             if self.controller.mode == "menu":
                 # Menu mode - menu system handles display
