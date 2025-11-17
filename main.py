@@ -41,7 +41,9 @@ from ble.server import BLEServer
 # Configure logging
 def setup_logging(log_level: str = "INFO"):
     """Setup logging configuration"""
-    log_dir = Path("/home/user/DMX/logs")
+    # Use logs directory relative to project root
+    project_root = Path(__file__).parent
+    log_dir = project_root / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
 
     logging.basicConfig(

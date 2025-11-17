@@ -15,13 +15,18 @@ logger = logging.getLogger(__name__)
 class Storage:
     """JSON-based persistent storage"""
 
-    def __init__(self, config_dir: str = "/home/user/DMX/config"):
+    def __init__(self, config_dir: Optional[str] = None):
         """
         Initialize storage
 
         Args:
-            config_dir: Directory for configuration files
+            config_dir: Directory for configuration files (default: <project_root>/config)
         """
+        if config_dir is None:
+            # Use config directory relative to project root
+            project_root = Path(__file__).parent.parent
+            config_dir = project_root / "config"
+
         self.config_dir = Path(config_dir)
         self.config_dir.mkdir(parents=True, exist_ok=True)
 
