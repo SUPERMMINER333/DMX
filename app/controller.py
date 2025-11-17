@@ -66,9 +66,9 @@ class DMXController:
         try:
             # Initialize DMX
             dmx_port = self.settings.get("dmx_port", "/dev/ttyUSB0")
-            dmx_baudrate = self.settings.get("dmx_baudrate", 250000)
+            # Note: baudrate is fixed at 250000 in the DMX library (DMX512 standard)
 
-            self.dmx = dmx_lib.Dmx(port=dmx_port, baudrate=dmx_baudrate)
+            self.dmx = dmx_lib.Dmx(port=dmx_port)
             self.dmx.start()
             logger.info(f"DMX started on {dmx_port}")
 
